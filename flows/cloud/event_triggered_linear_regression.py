@@ -109,6 +109,7 @@ class TaxiFarePrediction(FlowSpec):
 
     @step
     def end(self):
+        print(f"R2 Score:{self.scores.mean():0.2f}")
         print("Success!")
 
 
