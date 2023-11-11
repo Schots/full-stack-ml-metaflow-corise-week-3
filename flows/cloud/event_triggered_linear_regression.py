@@ -3,49 +3,53 @@ from metaflow.cards import Markdown, Table, Image, Artifact
 
 URL = "https://outerbounds-datasets.s3.us-west-2.amazonaws.com/taxi/latest.parquet"
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-
+FEATURES = ["tpep_pickup_datetime",
+          "passenger_count",
+          "RatecodeID",
+          "trip_distance"]
+TARGET = ["total_amount"]
 
 @trigger(events=["s3"])
 @conda_base(
     libraries={
         "pandas": "1.4.2",
         "pyarrow": "11.0.0",
-        "numpy": "1.21.2",
         "scikit-learn": "1.1.2",
+        "dirty_cat":"0.4.1"
     }
 )
 class TaxiFarePrediction(FlowSpec):
     data_url = Parameter("data_url", default=URL)
 
-    def transform_features(self, df):
-        # TODO:
-        # Try to complete tasks 2 and 3 with this function doing nothing like it currently is.
-        # Understand what is happening.
-        # Revisit task 1 and think about what might go in this function.
-
-        return df
-
     @step
     def start(self):
         import pandas as pd
-        from sklearn.model_selection import train_test_split
+        
+        self.data = pd.read_parquet(self.data_url)
+        self.X = self.data[FEATURES]
+        self.y = self.data[TARGET]
+        
+        self.next(self.vectorizer_assembly)
+        
+    @step
+    def vectorizer_assembly(self):
+        from dirty_cat import TableVectorizer
+        from sklearn.preprocessing import OrdinalEncoder
 
-        self.df = self.transform_features(pd.read_parquet(self.data_url))
 
-        # NOTE: we are split into training and validation set in the validation step which uses cross_val_score.
-        # This is a simple/naive way to do this, and is meant to keep this example simple, to focus learning on deploying Metaflow flows.
-        # In practice, you want split time series data in more sophisticated ways and run backtests.
-        self.X = self.df["trip_distance"].values.reshape(-1, 1)
-        self.y = self.df["total_amount"].values
-        self.next(self.linear_model)
+        low_card_encoder = OrdinalEncoder(handle_unknown="use_encoded_value",
+                                          unknown_value=-1)
+        self.vectorizer = TableVectorizer(impute_missing="force",
+                                          low_card_cat_transformer=low_card_encoder)
+
+        self.next(self.regressor_model)
 
     @step
-    def linear_model(self):
-        "Fit a single variable, linear model to the data."
-        from sklearn.linear_model import LinearRegression
+    def regressor_model(self):
+        from sklearn.ensemble import HistGradientBoostingRegressor
+        from sklearn.pipeline import make_pipeline
 
-        # TODO: Play around with the model if you are feeling it.
-        self.model = LinearRegression()
+        self.model = make_pipeline(self.vectorizer,HistGradientBoostingRegressor())
 
         self.next(self.validate)
 

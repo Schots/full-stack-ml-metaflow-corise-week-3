@@ -1,7 +1,7 @@
 from metaflow import FlowSpec, step, card, conda_base, schedule
 import json
 
-@schedule(cron='58 * * * * *')
+@schedule(cron='20 * * * * *')
 @conda_base(libraries={"scikit-learn": "1.1.1"}, python="3.10.10")
 class Branch_Cloud_Flow(FlowSpec):
     """
