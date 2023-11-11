@@ -25,7 +25,7 @@ class TaxiFarePrediction(FlowSpec):
     def start(self):
         import pandas as pd
         
-        self.data = pd.read_parquet(self.data_url)
+        self.data = pd.read_parquet(self.data_url).sort_values(["tpep_pickup_datetime"])
         self.X = self.data[FEATURES]
         self.y = self.data[TARGET]
         
@@ -96,8 +96,10 @@ class TaxiFarePrediction(FlowSpec):
     @step
     def validate(self):
         from sklearn.model_selection import cross_val_score
-
-        self.scores = cross_val_score(self.model, self.X, self.y, cv=5)
+        from sklearn.model_selection import TimeSeriesSplit
+        
+        tscv = TimeSeriesSplit()
+        self.scores = cross_val_score(self.model, self.X, self.y, cv=tscv)
         current.card.append(Markdown("# Taxi Fare Prediction Results"))
         current.card.append(
             Table(
